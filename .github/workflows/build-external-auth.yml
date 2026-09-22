@@ -39,6 +39,7 @@ jobs:
             -framework Security \
             -framework QuartzCore \
             -framework ImageIO \
+            -framework CoreGraphics \
             -Wl,-install_name,@rpath/ExternalAuth.dylib \
             -Wl,-dead_strip \
             -Wl,-sectcreate,__DATA,__eaicon,icon.gif \
