@@ -1,0 +1,68 @@
+name: Build ExternalAuth V6 Server Locked
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "ExternalAuth.mm"
+      - "icon.gif"
+      - ".github/workflows/build-external-auth.yml"
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build arm64 iOS dylib
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p build
+          SDK_PATH="$(xcrun --sdk iphoneos --show-sdk-path)"
+          echo "Using SDK: $SDK_PATH"
+
+          xcrun --sdk iphoneos clang++ \
+            -arch arm64 \
+            -miphoneos-version-min=15.0 \
+            -fobjc-arc \
+            -fvisibility=hidden \
+            -O2 \
+            -dynamiclib \
+            ExternalAuth.mm \
+            -framework UIKit \
+            -framework Foundation \
+            -framework Security \
+            -framework QuartzCore \
+            -framework ImageIO \
+            -framework CommonCrypto \
+            -Wl,-install_name,@rpath/ExternalAuth.dylib \
+            -Wl,-dead_strip \
+            -Wl,-sectcreate,__DATA,__eaicon,icon.gif \
+            -o build/ExternalAuth.dylib
+
+          codesign --remove-signature build/ExternalAuth.dylib 2>/dev/null || true
+
+          file build/ExternalAuth.dylib
+          otool -L build/ExternalAuth.dylib
+          strings build/ExternalAuth.dylib | grep "EA-HWID-V6-SERVER-LOCKED"
+          otool -l build/ExternalAuth.dylib | grep -A4 "sectname __eaicon" || true
+
+          cd build
+          shasum -a 256 ExternalAuth.dylib | awk '{print toupper($1)}' > ExternalAuth.dylib.sha256.txt
+          ditto -c -k --sequesterRsrc --keepParent ExternalAuth.dylib ExternalAuth.dylib.zip
+
+      - name: Upload dylib artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ExternalAuth-V6-SERVER-LOCKED
+          path: |
+            build/ExternalAuth.dylib
+            build/ExternalAuth.dylib.zip
+            build/ExternalAuth.dylib.sha256.txt
+          if-no-files-found: error
+          retention-days: 14
